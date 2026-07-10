@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "plannabel",
+  "main": "worker/index.js",
+  "compatibility_date": "2025-07-01",
+  "assets": {
+    "directory": "./public"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "plannabel-db",
+      "database_id": "0be2b58d-87d5-44a2-9c9d-86937f27e060"
+    }
+  ]
+}

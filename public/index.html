@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plannabel — Summer Checklist</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400;500;600;700&family=Karla:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="board">
+    <header class="hero">
+      <div class="hero-tape hero-tape--a"></div>
+      <div class="hero-tape hero-tape--b"></div>
+      <div class="hero-top">
+        <h1 class="wordmark">🎈 Plannabel</h1>
+        <p class="greeting" id="greeting"></p>
+      </div>
+      <p class="encouragement" id="encouragement">Loading your summer...</p>
+      <div class="bracelet-bar bracelet-bar--big" id="overallBar">
+        <div class="bracelet-fill" id="overallFill" style="width: 0%"></div>
+      </div>
+      <p class="overall-caption" id="overallCaption"></p>
+    </header>
+
+    <main>
+      <div class="board-toolbar">
+        <button class="btn btn--primary" id="addSubjectBtn" type="button">+ Add a subject</button>
+      </div>
+
+      <div class="empty-state" id="emptyState" hidden>
+        <p>Your board is empty!</p>
+        <p class="empty-sub">Add your first subject to start tracking summer work.</p>
+      </div>
+
+      <div class="subjects-grid" id="subjectsGrid"></div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="subjectModalBackdrop" hidden>
+    <form class="modal" id="subjectForm">
+      <h2>New subject</h2>
+      <label class="field">
+        <span>Name</span>
+        <input type="text" id="subjectName" placeholder="e.g. Algebra II" maxlength="40" required autocomplete="off" />
+      </label>
+      <label class="field">
+        <span>Pick a sticker</span>
+        <div class="emoji-picker" id="emojiPicker"></div>
+      </label>
+      <label class="field">
+        <span>Pick a color</span>
+        <div class="color-picker" id="colorPicker"></div>
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--ghost" id="cancelSubjectBtn">Cancel</button>
+        <button type="submit" class="btn btn--primary">Add subject</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
