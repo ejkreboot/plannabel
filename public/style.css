@@ -410,6 +410,80 @@ input {
   cursor: pointer;
 }
 
+/* ---------- Burn-down chart ---------- */
+
+.burndown-card {
+  position: relative;
+  background: var(--paper);
+  border-radius: 14px;
+  padding: 24px 22px 18px;
+  box-shadow: 0 8px 18px -6px var(--shadow);
+  margin-top: 32px;
+  transform: rotate(-0.3deg);
+}
+
+.burndown-tape {
+  background: repeating-linear-gradient(45deg, var(--moss), var(--moss) 6px, #fff 6px, #fff 12px);
+}
+
+.burndown-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.burndown-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--fern);
+}
+
+.burndown-caption {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.burndown-chart-wrap {
+  position: relative;
+}
+
+.burndown-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.burndown-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
+  pointer-events: none;
+  white-space: nowrap;
+  margin-top: -10px;
+}
+
+.burndown-tooltip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--ink);
+}
+
 /* ---------- Modal ---------- */
 
 .modal-backdrop {

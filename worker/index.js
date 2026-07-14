@@ -22,13 +22,21 @@ async function getState(env, request) {
     "SELECT id, name, emoji, color FROM subjects ORDER BY sort_order, id"
   ).all();
   const { results: todos } = await env.DB.prepare(
-    "SELECT id, subject_id, title, done FROM todos ORDER BY sort_order, id"
+    "SELECT id, subject_id, title, done, created_at, completed_at FROM todos ORDER BY sort_order, id"
   ).all();
 
   const bySubject = new Map(subjects.map((s) => [s.id, { ...s, todos: [] }]));
   for (const todo of todos) {
     const subject = bySubject.get(todo.subject_id);
-    if (subject) subject.todos.push({ id: todo.id, title: todo.title, done: !!todo.done });
+    if (subject) {
+      subject.todos.push({
+        id: todo.id,
+        title: todo.title,
+        done: !!todo.done,
+        created_at: todo.created_at,
+        completed_at: todo.completed_at,
+      });
+    }
   }
 
   return json({ me, subjects: [...bySubject.values()] });
@@ -99,12 +107,21 @@ async function createTodo(env, request) {
   const sortOrder = results[0].next;
 
   const result = await env.DB.prepare(
-    "INSERT INTO todos (subject_id, title, sort_order) VALUES (?, ?, ?) RETURNING id, subject_id, title, done"
+    "INSERT INTO todos (subject_id, title, sort_order) VALUES (?, ?, ?) RETURNING id, subject_id, title, done, created_at, completed_at"
   )
     .bind(subjectId, title, sortOrder)
     .first();
 
-  return json({ id: result.id, title: result.title, done: !!result.done }, { status: 201 });
+  return json(
+    {
+      id: result.id,
+      title: result.title,
+      done: !!result.done,
+      created_at: result.created_at,
+      completed_at: result.completed_at,
+    },
+    { status: 201 }
+  );
 }
 
 async function updateTodo(env, request, id) {
@@ -118,18 +135,26 @@ async function updateTodo(env, request, id) {
   if (body.done !== undefined) {
     fields.push("done = ?");
     values.push(body.done ? 1 : 0);
+    fields.push("completed_at = ?");
+    values.push(body.done ? new Date().toISOString() : null);
   }
   if (!fields.length) return json({ error: "no fields to update" }, { status: 400 });
   values.push(id);
 
   const result = await env.DB.prepare(
-    `UPDATE todos SET ${fields.join(", ")} WHERE id = ? RETURNING id, title, done`
+    `UPDATE todos SET ${fields.join(", ")} WHERE id = ? RETURNING id, title, done, created_at, completed_at`
   )
     .bind(...values)
     .first();
 
   if (!result) return json({ error: "not found" }, { status: 404 });
-  return json({ id: result.id, title: result.title, done: !!result.done });
+  return json({
+    id: result.id,
+    title: result.title,
+    done: !!result.done,
+    created_at: result.created_at,
+    completed_at: result.completed_at,
+  });
 }
 
 async function deleteTodo(env, id) {

@@ -36,6 +36,11 @@ const el = {
   colorPicker: document.getElementById("colorPicker"),
   cancelSubjectBtn: document.getElementById("cancelSubjectBtn"),
   confettiLayer: document.getElementById("confettiLayer"),
+  burndownCard: document.getElementById("burndownCard"),
+  burndownCaption: document.getElementById("burndownCaption"),
+  burndownSvg: document.getElementById("burndownSvg"),
+  burndownChartWrap: document.getElementById("burndownChartWrap"),
+  burndownTooltip: document.getElementById("burndownTooltip"),
 };
 
 function totalCounts(subjects) {
@@ -74,7 +79,234 @@ function render() {
   for (const subject of state.subjects) {
     el.subjectsGrid.appendChild(renderSubjectCard(subject));
   }
+
+  renderBurndown(state.subjects);
 }
+
+/* ---------- Burn-down chart ---------- */
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const burndown = { markers: [], vbW: 640, vbH: 200 };
+
+function svgEl(tag, attrs) {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  return node;
+}
+
+function dayKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function dayFromKey(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function formatDay(d) {
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function renderBurndown(subjects) {
+  const allTodos = subjects.flatMap((s) => s.todos);
+  if (!allTodos.length) {
+    el.burndownCard.hidden = true;
+    return;
+  }
+  el.burndownCard.hidden = false;
+
+  const total = allTodos.length;
+  const createdTimes = allTodos
+    .map((t) => new Date(t.created_at).getTime())
+    .filter((t) => !Number.isNaN(t));
+  const startDay = dayFromKey(dayKey(new Date(createdTimes.length ? Math.min(...createdTimes) : Date.now())));
+  const todayDay = dayFromKey(dayKey(new Date()));
+
+  const completedByDay = new Map();
+  for (const t of allTodos) {
+    if (!t.completed_at) continue;
+    const d = new Date(t.completed_at);
+    if (Number.isNaN(d.getTime())) continue;
+    const key = dayKey(d);
+    completedByDay.set(key, (completedByDay.get(key) || 0) + 1);
+  }
+  const sortedDayKeys = [...completedByDay.keys()].sort();
+
+  const points = [{ date: startDay, remaining: total, isToday: startDay.getTime() === todayDay.getTime() }];
+  let cumulative = 0;
+  for (const key of sortedDayKeys) {
+    cumulative += completedByDay.get(key);
+    const date = dayFromKey(key);
+    points.push({ date, remaining: total - cumulative, isToday: date.getTime() === todayDay.getTime() });
+  }
+  const last = points[points.length - 1];
+  if (todayDay.getTime() > last.date.getTime()) {
+    points.push({ date: todayDay, remaining: last.remaining, isToday: true });
+  }
+
+  drawBurndownChart(points, total);
+
+  const doneCount = allTodos.filter((t) => t.done).length;
+  el.burndownCaption.textContent = `${doneCount} of ${total} done since ${formatDay(startDay)}`;
+}
+
+function drawBurndownChart(points, total) {
+  const svg = el.burndownSvg;
+  svg.innerHTML = "";
+
+  const { vbW, vbH } = burndown;
+  const padL = 6;
+  const padR = 6;
+  const padT = 14;
+  const padB = 26;
+  const plotW = vbW - padL - padR;
+  const plotH = vbH - padT - padB;
+  const plotBottom = padT + plotH;
+
+  let domainStart = points[0].date.getTime();
+  let domainEnd = points[points.length - 1].date.getTime();
+  const oneDay = 24 * 60 * 60 * 1000;
+  if (domainEnd - domainStart < oneDay) domainEnd = domainStart + oneDay;
+
+  const scaleX = (t) => padL + ((t - domainStart) / (domainEnd - domainStart)) * plotW;
+  const scaleY = (remaining) => plotBottom - (total ? (remaining / total) * plotH : 0);
+
+  svg.appendChild(
+    svgEl("line", {
+      x1: padL,
+      y1: plotBottom,
+      x2: padL + plotW,
+      y2: plotBottom,
+      stroke: "var(--line)",
+      "stroke-width": 1.5,
+    })
+  );
+
+  const px = points.map((p) => scaleX(p.date.getTime()));
+  const py = points.map((p) => scaleY(p.remaining));
+
+  let linePath = `M ${px[0]} ${py[0]}`;
+  for (let i = 1; i < points.length; i++) {
+    linePath += ` L ${px[i]} ${py[i - 1]} L ${px[i]} ${py[i]}`;
+  }
+  const areaPath = `${linePath} L ${px[px.length - 1]} ${plotBottom} L ${px[0]} ${plotBottom} Z`;
+
+  svg.appendChild(svgEl("path", { d: areaPath, fill: "var(--fern)", "fill-opacity": 0.12, stroke: "none" }));
+  svg.appendChild(
+    svgEl("path", {
+      d: linePath,
+      fill: "none",
+      stroke: "var(--fern)",
+      "stroke-width": 3,
+      "stroke-linejoin": "round",
+      "stroke-linecap": "round",
+    })
+  );
+
+  burndown.markers = [];
+  points.forEach((p, i) => {
+    const isLast = i === points.length - 1;
+    svg.appendChild(
+      svgEl("circle", {
+        cx: px[i],
+        cy: py[i],
+        r: isLast ? 5 : 4,
+        fill: isLast ? "var(--fern)" : "var(--paper)",
+        stroke: "var(--fern)",
+        "stroke-width": 2,
+      })
+    );
+    burndown.markers.push({ x: px[i], y: py[i], point: p });
+  });
+
+  const startLabel = svgEl("text", {
+    x: px[0],
+    y: plotBottom + 18,
+    "text-anchor": "start",
+    fill: "var(--ink-soft)",
+    "font-size": 11,
+    "font-family": "Karla, sans-serif",
+  });
+  startLabel.textContent = formatDay(points[0].date);
+  svg.appendChild(startLabel);
+
+  const lastPoint = points[points.length - 1];
+  if (px[px.length - 1] - px[0] > 40) {
+    const endLabel = svgEl("text", {
+      x: px[px.length - 1],
+      y: plotBottom + 18,
+      "text-anchor": "end",
+      fill: "var(--ink-soft)",
+      "font-size": 11,
+      "font-family": "Karla, sans-serif",
+    });
+    endLabel.textContent = lastPoint.isToday ? "today" : formatDay(lastPoint.date);
+    svg.appendChild(endLabel);
+  }
+
+  const hoverLine = svgEl("line", {
+    x1: px[0],
+    y1: padT,
+    x2: px[0],
+    y2: plotBottom,
+    stroke: "var(--ink-soft)",
+    "stroke-width": 1,
+    "stroke-dasharray": "3,3",
+    opacity: 0,
+  });
+  svg.appendChild(hoverLine);
+  const hoverDot = svgEl("circle", {
+    r: 6,
+    fill: "var(--fern)",
+    stroke: "var(--paper)",
+    "stroke-width": 2,
+    opacity: 0,
+  });
+  svg.appendChild(hoverDot);
+  burndown.hoverLine = hoverLine;
+  burndown.hoverDot = hoverDot;
+}
+
+function handleBurndownMove(e) {
+  if (!burndown.markers.length) return;
+  const rect = el.burndownSvg.getBoundingClientRect();
+  if (!rect.width) return;
+  const scale = burndown.vbW / rect.width;
+  const localX = (e.clientX - rect.left) * scale;
+
+  let nearest = burndown.markers[0];
+  let bestDist = Infinity;
+  for (const m of burndown.markers) {
+    const dist = Math.abs(m.x - localX);
+    if (dist < bestDist) {
+      bestDist = dist;
+      nearest = m;
+    }
+  }
+
+  burndown.hoverLine.setAttribute("x1", nearest.x);
+  burndown.hoverLine.setAttribute("x2", nearest.x);
+  burndown.hoverLine.setAttribute("opacity", 1);
+  burndown.hoverDot.setAttribute("cx", nearest.x);
+  burndown.hoverDot.setAttribute("cy", nearest.y);
+  burndown.hoverDot.setAttribute("opacity", 1);
+
+  const wrapRect = el.burndownChartWrap.getBoundingClientRect();
+  el.burndownTooltip.style.left = `${wrapRect.width * (nearest.x / burndown.vbW)}px`;
+  el.burndownTooltip.style.top = `${wrapRect.height * (nearest.y / burndown.vbH)}px`;
+  const label = nearest.point.isToday ? "today" : formatDay(nearest.point.date);
+  el.burndownTooltip.textContent = `${nearest.point.remaining} left · ${label}`;
+  el.burndownTooltip.hidden = false;
+}
+
+function handleBurndownLeave() {
+  if (burndown.hoverLine) burndown.hoverLine.setAttribute("opacity", 0);
+  if (burndown.hoverDot) burndown.hoverDot.setAttribute("opacity", 0);
+  el.burndownTooltip.hidden = true;
+}
+
+el.burndownChartWrap.addEventListener("pointermove", handleBurndownMove);
+el.burndownChartWrap.addEventListener("pointerleave", handleBurndownLeave);
 
 function renderSubjectCard(subject) {
   const card = document.createElement("div");
@@ -177,13 +409,18 @@ async function addTodo(subjectId, title) {
 }
 
 async function toggleTodo(subject, todo, done, checkboxEl) {
+  const prevCompletedAt = todo.completed_at;
   todo.done = done;
+  todo.completed_at = done ? new Date().toISOString() : null;
   render();
   if (done) fireConfetti(checkboxEl, subject.color);
   try {
-    await api(`/api/todos/${todo.id}`, { method: "PATCH", body: JSON.stringify({ done }) });
+    const result = await api(`/api/todos/${todo.id}`, { method: "PATCH", body: JSON.stringify({ done }) });
+    todo.completed_at = result.completed_at;
+    render();
   } catch (err) {
     todo.done = !done;
+    todo.completed_at = prevCompletedAt;
     render();
   }
 }
